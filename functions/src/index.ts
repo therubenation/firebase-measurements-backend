@@ -86,12 +86,12 @@ export const seedMultipleMeasurementFilesFromAssets = v2.https.onRequest(async (
     try {
         const db = admin.firestore();
         //Path to measurement data
-        const assetsDirPath = path.join(__dirname, '../assets/original_measurement_data');
+        const assetsDirPath = path.join(__dirname, '../assets/original_measurement_data/with_meta_data');
 
         const files = fs.readdirSync(assetsDirPath).filter(f => f.endsWith('.json'));
 
         if (files.length === 0) {
-            res.status(404).send('No JSON files found in /original_measurement_data');
+            res.status(404).send('No JSON files found in /original_measurement_data/with_meta_data');
             return;
         }
 
@@ -106,6 +106,10 @@ export const seedMultipleMeasurementFilesFromAssets = v2.https.onRequest(async (
             const measurementData = normalizeMeasurementData(rawData);
 
             const ref = db.collection('measurementData').doc(path.parse(file).name);
+
+            console.log('Raw keys:', Object.keys(rawData));
+            console.log('Example data snippet:', rawData.points?.[0]);
+
             batch.set(ref, measurementData);
             console.log(`Added ${file}`);
         });
@@ -193,19 +197,64 @@ export const newMeasurement = v1.firestore
 // ----------------------------HELPER FUNCTIONS-----------------------------------
 
 /**
- * Converts legacy measurement format
- *   { "result": [[x, y], [x, y], ...] }
+ * Converts measurement format
+ *   {
+ *     "xUnit": "mV",
+ *     "yUnit": "nA",
+ *     "xScale": 1,
+ *     "yScale": 10,
+ *     "points": [[x, y], ...]
+ *   }
  * into Firestore-compatible structure
- *   { "trace": [{x, y}, {x, y}, ...] }
+ *   {
+ *     "xUnit": "...",
+ *     "yUnit": "...",
+ *     "xScale": ...,
+ *     "yScale": ...,
+ *     "trace": [{x, y}, ...]
+ *   }
  */
 function normalizeMeasurementData(raw: any) {
-    if (Array.isArray(raw.result)) {
-        const trace = raw.result.map(
-            (pair: number[]) => ({ x: pair[0], y: pair[1] })
-        );
-        return { trace };
+    let trace: { x: number; y: number }[] | undefined;
+
+    // new format with points
+    if (Array.isArray(raw.points)) {
+        trace = raw.points
+            .flat() // remove nesting if present
+            .map((pair: any) => {
+                if (Array.isArray(pair)) {
+                    return { x: pair[0], y: pair[1] };
+                }
+                return pair;
+            });
     }
-    // already in correct structure
-    return raw;
+
+    // legacy format
+    if (!trace && Array.isArray(raw.result)) {
+        trace = raw.result
+            .flat()
+            .map((pair: any) =>
+                Array.isArray(pair) ? { x: pair[0], y: pair[1] } : pair
+            );
+    }
+
+    // if still nothing, try rescue: maybe someone left a nested array under "trace"
+    if (!trace && Array.isArray(raw.trace) && Array.isArray(raw.trace[0])) {
+        trace = raw.trace
+            .flat()
+            .map((pair: any) =>
+                Array.isArray(pair) ? { x: pair[0], y: pair[1] } : pair
+            );
+    }
+
+    // attach the cleaned trace and keep metadata
+    const { xUnit, yUnit, xScale, yScale } = raw;
+    const normalized = { xUnit, yUnit, xScale, yScale, trace };
+
+    console.log('Normalized preview:', normalized.trace?.[0]); // should print {x: ..., y: ...}
+    return normalized;
 }
+
+
+
 
