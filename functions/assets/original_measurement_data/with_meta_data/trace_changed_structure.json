@@ -1,0 +1,29 @@
+{
+  "xUnit": "voltage_mV",
+  "yUnit": "peak_current_nA",
+  "xScale": 1,
+  "yScale": 10,
+  "points": [
+    { "voltage_mV": -800, "peak_current_nA": -21 },
+    { "voltage_mV": -770, "peak_current_nA": -18 },
+    { "voltage_mV": -740, "peak_current_nA": -14 },
+    { "voltage_mV": -710, "peak_current_nA": -9 },
+    { "voltage_mV": -680, "peak_current_nA": -4 },
+    { "voltage_mV": -650, "peak_current_nA": 2 },
+    { "voltage_mV": -620, "peak_current_nA": 9 },
+    { "voltage_mV": -590, "peak_current_nA": 17 },
+    { "voltage_mV": -560, "peak_current_nA": 26 },
+    { "voltage_mV": -530, "peak_current_nA": 38 },
+    { "voltage_mV": -500, "peak_current_nA": 51 },
+    { "voltage_mV": -470, "peak_current_nA": 63 },
+    { "voltage_mV": -440, "peak_current_nA": 70 },
+    { "voltage_mV": -410, "peak_current_nA": 73 },
+    { "voltage_mV": -380, "peak_current_nA": 72 },
+    { "voltage_mV": -350, "peak_current_nA": 65 },
+    { "voltage_mV": -320, "peak_current_nA": 51 },
+    { "voltage_mV": -290, "peak_current_nA": 33 },
+    { "voltage_mV": -260, "peak_current_nA": 14 },
+    { "voltage_mV": -230, "peak_current_nA": -5 },
+    { "voltage_mV": -200, "peak_current_nA": -21 }
+  ]
+}

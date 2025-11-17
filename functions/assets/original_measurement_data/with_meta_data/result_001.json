@@ -1,6 +1,6 @@
 {
-  "xUnit": "mV",
-  "yUnit": "nA",
+  "xUnit": "voltage_mV",
+  "yUnit": "peak_current_nA",
   "xScale": 1,
   "yScale": 10,
   "points": [

@@ -197,48 +197,37 @@ export const newMeasurement = v1.firestore
 // ----------------------------HELPER FUNCTIONS-----------------------------------
 
 /**
- * Converts measurement format
- *   {
- *     "xUnit": "mV",
- *     "yUnit": "nA",
- *     "xScale": 1,
- *     "yScale": 10,
- *     "points": [[x, y], ...]
- *   }
- * into Firestore-compatible structure
- *   {
- *     "xUnit": "...",
- *     "yUnit": "...",
- *     "xScale": ...,
- *     "yScale": ...,
- *     "trace": [{x, y}, ...]
- *   }
+ * Converts various measurement formats into Firestore-compatible structure.
+ *
+ * Supports:
+ * - current format with `points` as array of objects
+ * - legacy formats with `points` or `result` as array of arrays
+ * - already normalized `trace`
  */
 function normalizeMeasurementData(raw: any) {
     let trace: { x: number; y: number }[] | undefined;
 
-    // new format with points
-    if (Array.isArray(raw.points)) {
-        trace = raw.points
-            .flat() // remove nesting if present
-            .map((pair: any) => {
-                if (Array.isArray(pair)) {
-                    return { x: pair[0], y: pair[1] };
-                }
-                return pair;
-            });
+    // New format: points = array of objects
+    if (Array.isArray(raw.points) && typeof raw.points[0] === 'object' && !Array.isArray(raw.points[0])) {
+        trace = raw.points.map((p: any) => {
+            // pick first two numeric values in case key names differ slightly
+            const x = p.voltage_mV ?? p.x ?? Object.values(p)[0];
+            const y = p.peak_current_nA ?? p.y ?? Object.values(p)[1];
+            return { x, y };
+        });
     }
 
-    // legacy format
-    if (!trace && Array.isArray(raw.result)) {
-        trace = raw.result
+    // Old format: points or result = array of [x,y]
+    if (!trace && (Array.isArray(raw.points) || Array.isArray(raw.result))) {
+        const pairs = raw.points ?? raw.result;
+        trace = pairs
             .flat()
             .map((pair: any) =>
                 Array.isArray(pair) ? { x: pair[0], y: pair[1] } : pair
             );
     }
 
-    // if still nothing, try rescue: maybe someone left a nested array under "trace"
+    // Fallback: trace nested array
     if (!trace && Array.isArray(raw.trace) && Array.isArray(raw.trace[0])) {
         trace = raw.trace
             .flat()
@@ -247,14 +236,62 @@ function normalizeMeasurementData(raw: any) {
             );
     }
 
-    // attach the cleaned trace and keep metadata
+    // Attach metadata and return
     const { xUnit, yUnit, xScale, yScale } = raw;
     const normalized = { xUnit, yUnit, xScale, yScale, trace };
 
-    console.log('Normalized preview:', normalized.trace?.[0]); // should print {x: ..., y: ...}
+    console.log('Normalized preview:', normalized.trace?.[0]);
     return normalized;
 }
 
+/**
+ * Returns chart-ready data for a specific measurement document.
+ *
+ * Response example:
+ * {
+ *   "xLabel": "voltage_mV",
+ *   "yLabel": "peak_current_nA",
+ *   "points": [[-800, -21], [-770, -18], ...]
+ * }
+ */
+export const getChartData = v2.https.onRequest(async (req, res) => {
+    try {
+        if (req.method !== 'GET') {
+            res.status(405).send('Method Not Allowed');
+            return;
+        }
+
+        const id = req.query.id as string;
+        if (!id) {
+            res.status(400).send('Missing measurement ID');
+            return;
+        }
+
+        const db = admin.firestore();
+        const doc = await db.collection('measurementData').doc(id).get();
+
+        if (!doc.exists) {
+            res.status(404).send('Measurement not found');
+            return;
+        }
+
+        const data = doc.data()!;
+        const xLabel = data.xUnit ?? 'x';
+        const yLabel = data.yUnit ?? 'y';
+
+        // Convert Firestore trace [{x, y}, ...] → [[x, y], ...]
+        const points = (data.trace ?? []).map((p: any) => [p.x, p.y]);
+
+        // Optionally log the transformation
+        console.log(`Prepared chart data for ${id}:`, points.length, 'points');
+
+        res.set('Content-Type', 'application/json');
+        res.status(200).json({ xLabel, yLabel, points });
+    } catch (error) {
+        console.error('Error preparing chart data:', error);
+        res.status(500).send('Internal Server Error');
+    }
+});
 
 
 
